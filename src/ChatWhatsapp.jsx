@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Phone, Video, MoreVertical, Search, Paperclip, Smile } from 'lucide-react';
+import { Send, Phone, Video, MoreVertical, Search, Paperclip, Smile, LogOut } from 'lucide-react';
 
-function ChatWhatsApp() {
+function ChatWhatsApp({ user, onLogout }) {
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: "¡Hola! Soy tu asistente virtual. ¿En que puedo ayudarte?",
+      text: "¡Hola! Bienvenido a nuestro chatbot demo. Este es un ejemplo de cómo funcionará la interfaz de WhatsApp.",
       sender: 'bot',
       timestamp: new Date()
     }
@@ -44,17 +44,33 @@ function ChatWhatsApp() {
   return (
     <div className="w-full h-screen bg-gray-900 flex items-center justify-center">
       <div className="flex h-full w-full bg-[#111b21] shadow-2xl">
-        {/* Sidebar - Solo visible en desktop */}
+        {/* Desktop Sidebar */}
         <div className="hidden lg:flex lg:w-[30%] xl:w-[25%] flex-col border-r border-[#2a3942] bg-[#111b21]">
           {/* Header del sidebar */}
           <div className="bg-[#202c33] px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#6b7c85] flex items-center justify-center text-white font-medium">
-                AI
+                {user?.email ? user.email.charAt(0).toUpperCase() : 'AI'}
               </div>
-              <span className="text-white font-medium">Asistente IA</span>
+              <div>
+                <span className="text-white font-medium block">
+                  {user?.email || 'Asistente IA'}
+                </span>
+                {user?.email && (
+                  <span className="text-[#667781] text-xs">en línea</span>
+                )}
+              </div>
             </div>
             <div className="flex gap-4 text-[#aebac1]">
+              {onLogout && (
+                <button 
+                  onClick={onLogout}
+                  className="cursor-pointer hover:text-white transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <LogOut size={20} />
+                </button>
+              )}
               <MoreVertical size={20} className="cursor-pointer hover:text-white" />
             </div>
           </div>
@@ -124,14 +140,14 @@ function ChatWhatsApp() {
               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
             }}
           >
-            <div className="max-w-8xl mx-auto space-y-3">
+            <div className="max-w-4xl mx-auto space-y-3">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-lg px-3 py-2 shadow-md ${
+                    className={`max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-md ${
                       message.sender === 'user'
                         ? 'bg-[#005c4b] text-white'
                         : 'bg-[#202c33] text-[#e9edef]'
