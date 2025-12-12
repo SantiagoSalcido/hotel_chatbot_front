@@ -1,16 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Phone, Video, MoreVertical, Search, Paperclip, Smile, LogOut } from 'lucide-react';
+import { chatService } from './services/chatService';
+import { authService } from './services/authService';
 
 function ChatWhatsApp({ user, onLogout }) {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "¡Hola! Bienvenido a nuestro chatbot demo. Este es un ejemplo de cómo funcionará la interfaz de WhatsApp.",
-      sender: 'bot',
-      timestamp: new Date()
-    }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [chatSessionId, setChatSessionId] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -21,9 +18,9 @@ function ChatWhatsApp({ user, onLogout }) {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || isTyping) return;
 
     // Agregar mensaje del usuario
     const userMessage = {
@@ -35,6 +32,53 @@ function ChatWhatsApp({ user, onLogout }) {
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
+    setIsTyping(true);
+
+    try {
+      // Enviar mensaje al backend
+      const response = await chatService.sendMessage(inputMessage, chatSessionId);
+      
+      // Guardar el chat_session_id si es nuevo
+      if (!chatSessionId && response.chat_session_id) {
+        setChatSessionId(response.chat_session_id);
+      }
+
+      // Agregar respuesta del bot
+      const botMessage = {
+        id: Date.now() + 1,
+        text: response.reply,
+        sender: 'bot',
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
+      
+      // Mostrar mensaje de error
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.',
+        sender: 'bot',
+        timestamp: new Date(),
+        isError: true
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      onLogout();
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      // Forzar logout local aunque falle el backend
+      onLogout();
+    }
   };
 
   const formatTime = (date) => {
@@ -50,27 +94,23 @@ function ChatWhatsApp({ user, onLogout }) {
           <div className="bg-[#202c33] px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#6b7c85] flex items-center justify-center text-white font-medium">
-                {user?.email ? user.email.charAt(0).toUpperCase() : 'AI'}
+                {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
               <div>
                 <span className="text-white font-medium block">
-                  {user?.email || 'Asistente IA'}
+                  {user?.username || 'Usuario'}
                 </span>
-                {user?.email && (
-                  <span className="text-[#667781] text-xs">en línea</span>
-                )}
+                <span className="text-[#667781] text-xs">en línea</span>
               </div>
             </div>
             <div className="flex gap-4 text-[#aebac1]">
-              {onLogout && (
-                <button 
-                  onClick={onLogout}
-                  className="cursor-pointer hover:text-white transition-colors"
-                  title="Cerrar sesión"
-                >
-                  <LogOut size={20} />
-                </button>
-              )}
+              <button 
+                onClick={handleLogout}
+                className="cursor-pointer hover:text-white transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={20} />
+              </button>
               <MoreVertical size={20} className="cursor-pointer hover:text-white" />
             </div>
           </div>
@@ -97,7 +137,7 @@ function ChatWhatsApp({ user, onLogout }) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="text-[#e9edef] font-medium">Chatbot Demo</h3>
+                      <h3 className="text-[#e9edef] font-medium">Asistente Hotel</h3>
                       <span className="text-[#667781] text-xs">
                         {formatTime(messages[messages.length - 1]?.timestamp || new Date())}
                       </span>
@@ -121,8 +161,10 @@ function ChatWhatsApp({ user, onLogout }) {
                 🤖
               </div>
               <div>
-                <h2 className="text-[#e9edef] font-medium">Chatbot Demo</h2>
-                <p className="text-[#667781] text-xs">en línea</p>
+                <h2 className="text-[#e9edef] font-medium">Asistente Hotel</h2>
+                <p className="text-[#667781] text-xs">
+                  {isTyping ? 'escribiendo...' : 'en línea'}
+                </p>
               </div>
             </div>
             <div className="flex gap-5 text-[#aebac1]">
@@ -150,6 +192,8 @@ function ChatWhatsApp({ user, onLogout }) {
                     className={`max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg px-3 py-2 shadow-md ${
                       message.sender === 'user'
                         ? 'bg-[#005c4b] text-white'
+                        : message.isError
+                        ? 'bg-red-900/50 text-red-200'
                         : 'bg-[#202c33] text-[#e9edef]'
                     }`}
                   >
@@ -160,7 +204,7 @@ function ChatWhatsApp({ user, onLogout }) {
                       <span className="text-[10px] sm:text-xs text-[#667781]">
                         {formatTime(message.timestamp)}
                       </span>
-                      {message.sender === 'user' && (
+                      {message.sender === 'user' && !message.isError && (
                         <svg width="16" height="11" viewBox="0 0 16 11" className="text-[#53bdeb]">
                           <path
                             d="M11.071.653a.5.5 0 0 1 .708 0l3.889 3.889a.5.5 0 1 1-.708.707L11.424 1.71 6.778 6.357a.5.5 0 1 1-.708-.707L11.071.653zm-5.778 0a.5.5 0 0 1 .708 0l3.889 3.889a.5.5 0 0 1-.708.707L5.646 1.71 1 6.357a.5.5 0 1 1-.708-.707L5.293.653z"
@@ -172,6 +216,19 @@ function ChatWhatsApp({ user, onLogout }) {
                   </div>
                 </div>
               ))}
+
+              {/* Indicador de escritura */}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-[#202c33] rounded-lg px-4 py-3 shadow-md">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div ref={messagesEndRef} />
             </div>
@@ -198,16 +255,17 @@ function ChatWhatsApp({ user, onLogout }) {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Escribe un mensaje"
-                  className="w-full bg-transparent text-[#e9edef] text-sm sm:text-base outline-none placeholder-[#667781]"
+                  disabled={isTyping}
+                  className="w-full bg-transparent text-[#e9edef] text-sm sm:text-base outline-none placeholder-[#667781] disabled:opacity-50"
                 />
               </div>
               <button
                 type="submit"
-                disabled={!inputMessage.trim()}
+                disabled={!inputMessage.trim() || isTyping}
                 className={`p-2 sm:p-2.5 rounded-full transition-all ${
-                  inputMessage.trim()
+                  inputMessage.trim() && !isTyping
                     ? 'bg-[#00a884] hover:bg-[#06cf9c] text-white'
-                    : 'bg-[#2a3942] text-[#667781]'
+                    : 'bg-[#2a3942] text-[#667781] cursor-not-allowed'
                 }`}
               >
                 <Send size={20} className="sm:w-5 sm:h-5" />
